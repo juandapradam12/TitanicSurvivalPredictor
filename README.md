@@ -1,6 +1,6 @@
 # Titanic Survival Predictor
 
-**Interpretable binary classification with a from-scratch logistic regression core — plus a leak-safe model benchmark, Kaggle submission pipeline, and SHAP explanations.**
+**Interpretable binary classification with a from-scratch logistic regression core — plus leak-safe CV, tuning, calibration, SHAP, a Kaggle submission path, and a Streamlit demo.**
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
@@ -33,6 +33,10 @@ The result is a portfolio piece that shows *statistical understanding*, *clean e
 | Evaluation | Stratified 5-fold CV (Accuracy / F1 / ROC-AUC) + holdout |
 | Kaggle submission | `scripts/make_submission.py` → `submission.csv` |
 | Interpretation | Coefficient tables + SHAP mean \|SHAP\| rankings |
+| Hyperparameter tuning | RandomizedSearchCV over logistic / GBM / RF Pipelines |
+| Calibration | Isotonic/Platt + F1-optimal decision threshold |
+| Interactive demo | `streamlit run app.py` |
+| CI | GitHub Actions: pytest + smoke benchmark |
 | Walkthrough notebook | Math, EDA, and benchmark in `TitanicSurvivalPredictor.ipynb` |
 
 ---
@@ -59,6 +63,13 @@ python3 scripts/make_submission.py --model auto
 python3 scripts/interpret_model.py --model sklearn_logistic
 python3 scripts/interpret_model.py --model gradient_boosting
 
+# Tune + calibrate (optional but recommended before serving)
+python3 scripts/tune_model.py --model gradient_boosting --n-iter 20
+python3 scripts/calibrate_and_threshold.py --model gradient_boosting
+
+# Interactive demo
+streamlit run app.py
+
 # Notebook
 jupyter notebook TitanicSurvivalPredictor.ipynb
 ```
@@ -82,16 +93,21 @@ TitanicSurvivalPredictor/
 │   ├── models.py               # Model zoo + CV
 │   ├── interpretation.py       # Coefficients + SHAP
 │   └── pipeline.py             # Benchmark, submit, interpret entry points
+├── app.py                           # Streamlit demo
 ├── scripts/
 │   ├── train_and_evaluate.py
 │   ├── make_submission.py
-│   └── interpret_model.py
+│   ├── interpret_model.py
+│   ├── tune_model.py
+│   └── calibrate_and_threshold.py
+├── .github/workflows/ci.yml
 ├── tests/
 ├── figures/
 └── docs/
     ├── METHODOLOGY.md
     ├── ALGORITHMS.md
     ├── INTERPRETATION.md
+    ├── TUNING_AND_CALIBRATION.md
     └── PROJECT_OVERVIEW.md
 ```
 
@@ -147,6 +163,15 @@ gradient_boosting         0.8406   0.7785        0.8816
 
 Title, sex, and class dominate both the linear coefficients and the tree SHAP rankings — the story an interpretable model should recover.
 
+### Calibration & ROC
+
+<p align="center">
+  <img src="figures/reliability_gradient_boosting.png" alt="Reliability curve" width="420"/>
+  <img src="figures/roc_pr_gradient_boosting.png" alt="ROC and PR curves" width="520"/>
+</p>
+
+Tune with `scripts/tune_model.py`, then calibrate and pick an F1-optimal threshold with `scripts/calibrate_and_threshold.py`. Serve interactively via `streamlit run app.py`.
+
 ---
 
 ## Documentation
@@ -154,6 +179,7 @@ Title, sex, and class dominate both the linear coefficients and the tree SHAP ra
 - [Methodology](docs/METHODOLOGY.md) — leak-safe Pipelines, features, CV
 - [Algorithms](docs/ALGORITHMS.md) — custom logistic regression & imputation
 - [Interpretation](docs/INTERPRETATION.md) — coefficients & SHAP
+- [Tuning & calibration](docs/TUNING_AND_CALIBRATION.md) — search spaces, Brier, thresholds
 - [Project overview](docs/PROJECT_OVERVIEW.md) — elevator pitch & design principles
 - [Notebook](TitanicSurvivalPredictor.ipynb) — exploratory analysis and live training
 
