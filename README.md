@@ -133,8 +133,10 @@ Full derivation: [docs/ALGORITHMS.md](docs/ALGORITHMS.md).
 
 ## Example output
 
+**Model leaderboard (stratified 5-fold CV).** Mean ROC-AUC with error bars for each model in the zoo. Gradient Boosting leads; the custom logistic estimator stays within ~1 point of scikit-learn’s, which is the interpretability trade-off this project is built around.
+
 <p align="center">
-  <img src="figures/leaderboard.png" alt="Model leaderboard ROC-AUC" width="720"/>
+  <img src="figures/leaderboard.png" alt="Leak-safe model leaderboard comparing ROC-AUC across classifiers" width="720"/>
 </p>
 
 ```text
@@ -153,24 +155,39 @@ gradient_boosting         0.8406   0.7785        0.8816
 
 ### What drives survival?
 
-<p align="center">
-  <img src="figures/coefficients_sklearn_logistic.png" alt="Logistic coefficients" width="720"/>
-</p>
+**Logistic coefficients (sklearn).** Largest-magnitude coefficients after leak-safe preprocessing. Positive bars raise log-odds of survival (e.g. `Title_Master`, `Title_Mrs`); negative bars lower them (e.g. `Title_Mr`, `Sex_male`, higher `Pclass` number).
 
 <p align="center">
-  <img src="figures/shap_importance_gradient_boosting.png" alt="SHAP importance for Gradient Boosting" width="720"/>
+  <img src="figures/coefficients_sklearn_logistic.png" alt="Horizontal bar chart of logistic regression coefficients by feature" width="720"/>
 </p>
 
-Title, sex, and class dominate both the linear coefficients and the tree SHAP rankings — the story an interpretable model should recover.
-
-### Calibration & ROC
+**SHAP importance (Gradient Boosting).** Mean absolute SHAP values on a held sample of passengers. Title, sex, and class again dominate — the non-linear model recovers the same social structure as the linear coefficients.
 
 <p align="center">
-  <img src="figures/reliability_gradient_boosting.png" alt="Reliability curve" width="420"/>
-  <img src="figures/roc_pr_gradient_boosting.png" alt="ROC and PR curves" width="520"/>
+  <img src="figures/shap_importance_gradient_boosting.png" alt="Mean absolute SHAP feature importance for Gradient Boosting" width="720"/>
 </p>
 
-Tune with `scripts/tune_model.py`, then calibrate and pick an F1-optimal threshold with `scripts/calibrate_and_threshold.py`. Serve interactively via `streamlit run app.py`.
+### Calibration & discrimination
+
+**Reliability curve.** Predicted probability vs. observed survival rate before and after isotonic calibration. Closer to the diagonal means better-calibrated probabilities for decision thresholds and the Streamlit demo.
+
+<p align="center">
+  <img src="figures/reliability_gradient_boosting.png" alt="Reliability curve comparing uncalibrated and calibrated Gradient Boosting" width="480"/>
+</p>
+
+**ROC and precision–recall.** Holdout discrimination for the calibrated Gradient Boosting model — ROC summarizes ranking quality; PR focuses on the minority survived class.
+
+<p align="center">
+  <img src="figures/roc_pr_gradient_boosting.png" alt="Side-by-side ROC and precision-recall curves for calibrated Gradient Boosting" width="720"/>
+</p>
+
+**Example passenger predictions.** Calibrated survival probabilities for two archetypes used to sanity-check the serving model (first-class woman vs. third-class man).
+
+<p align="center">
+  <img src="figures/demo_example_predictions.png" alt="Calibrated survival probabilities for example passenger archetypes" width="640"/>
+</p>
+
+Tune with `scripts/tune_model.py`, calibrate and pick an F1-optimal threshold with `scripts/calibrate_and_threshold.py`, then explore interactively via `streamlit run app.py`.
 
 ---
 
@@ -204,5 +221,3 @@ competition. `train.csv` and `test.csv` are included so the submission script ru
 ## Author
 
 **Juan David Prada Malagón** — data scientist.
-
-If this repo helps you learn logistic regression or structure an ML portfolio piece, a star is appreciated.
