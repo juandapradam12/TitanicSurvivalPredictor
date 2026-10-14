@@ -24,6 +24,12 @@ def main() -> int:
     )
     parser.add_argument("--cv", type=int, default=5, help="Stratified CV folds")
     parser.add_argument(
+        "--age-strategy",
+        default="knn",
+        choices=["knn", "group_median"],
+        help="Age imputation strategy fitted inside each CV fold",
+    )
+    parser.add_argument(
         "--json-out",
         type=Path,
         default=None,
@@ -31,7 +37,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    result = run_benchmark(args.data, cv_splits=args.cv)
+    result = run_benchmark(
+        args.data, cv_splits=args.cv, age_strategy=args.age_strategy
+    )
     board = result["leaderboard"]
 
     print("=" * 64)

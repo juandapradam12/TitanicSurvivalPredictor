@@ -24,6 +24,8 @@ artifacts/
 /tmp/
 *.json
 !package.json
+submission.csv
+*.joblib
 
 # Test / coverage
 .pytest_cache/

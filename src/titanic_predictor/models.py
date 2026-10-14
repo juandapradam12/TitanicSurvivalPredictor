@@ -1,4 +1,4 @@
-"""Model zoo and evaluation helpers."""
+"""Model zoo and evaluation helpers (leak-safe Pipelines)."""
 
 from __future__ import annotations
 
@@ -16,63 +16,85 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 
 from .custom_logistic import CustomLogisticRegression
+from .preprocessing import build_preprocess_pipeline
 
 
-def build_model_zoo(random_state: int = 42) -> Dict[str, Any]:
-    """Return a curated set of classifiers spanning linear and tree families."""
+def build_model_zoo(
+    random_state: int = 42,
+    *,
+    age_strategy: str = "knn",
+) -> Dict[str, Pipeline]:
+    """
+    Return classifiers wrapped in full preprocess → model Pipelines.
+
+    Preprocessing (feature build, age imputation, encoding, scaling) is fitted
+    inside each CV fold via these Pipelines — no global imputation leakage.
+    """
+    def _pipe(estimator, *, scale_numeric: bool) -> Pipeline:
+        pre = build_preprocess_pipeline(
+            age_strategy=age_strategy,
+            scale_numeric=scale_numeric,
+        )
+        return Pipeline([("preprocess", pre), ("model", estimator)])
+
     return {
-        "custom_logistic": CustomLogisticRegression(
-            learning_rate=0.5,
-            max_iter=4000,
-            standardize=True,
-            random_state=random_state,
+        "custom_logistic": _pipe(
+            CustomLogisticRegression(
+                learning_rate=0.5,
+                max_iter=4000,
+                # Features are already scaled in preprocess for linear models.
+                standardize=False,
+                random_state=random_state,
+            ),
+            scale_numeric=True,
         ),
-        "sklearn_logistic": Pipeline(
-            steps=[
-                ("scaler", StandardScaler()),
-                (
-                    "clf",
-                    LogisticRegression(
-                        max_iter=2000,
-                        C=1.0,
-                        solver="lbfgs",
-                        random_state=random_state,
-                    ),
-                ),
-            ]
+        "sklearn_logistic": _pipe(
+            LogisticRegression(
+                max_iter=2000,
+                C=1.0,
+                solver="lbfgs",
+                random_state=random_state,
+            ),
+            scale_numeric=True,
         ),
-        "random_forest": RandomForestClassifier(
-            n_estimators=300,
-            max_depth=6,
-            min_samples_leaf=3,
-            random_state=random_state,
-            n_jobs=-1,
+        "random_forest": _pipe(
+            RandomForestClassifier(
+                n_estimators=300,
+                max_depth=6,
+                min_samples_leaf=3,
+                random_state=random_state,
+                n_jobs=-1,
+            ),
+            scale_numeric=False,
         ),
-        "gradient_boosting": GradientBoostingClassifier(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=3,
-            random_state=random_state,
+        "gradient_boosting": _pipe(
+            GradientBoostingClassifier(
+                n_estimators=200,
+                learning_rate=0.05,
+                max_depth=3,
+                random_state=random_state,
+            ),
+            scale_numeric=False,
         ),
     }
 
 
 def evaluate_models(
-    X: pd.DataFrame | np.ndarray,
+    X: pd.DataFrame,
     y: pd.Series | np.ndarray,
     *,
     cv_splits: int = 5,
     random_state: int = 42,
+    age_strategy: str = "knn",
 ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, Any]]]:
     """
-    Stratified k-fold comparison across the model zoo.
+    Stratified k-fold comparison across the leak-safe model zoo.
 
     Returns a leaderboard DataFrame and raw fold metrics for each model.
     """
-    models = build_model_zoo(random_state=random_state)
+    models = build_model_zoo(random_state=random_state, age_strategy=age_strategy)
     cv = StratifiedKFold(n_splits=cv_splits, shuffle=True, random_state=random_state)
     scoring = {
         "accuracy": "accuracy",
@@ -132,6 +154,7 @@ def holdout_report(
         "accuracy": float(accuracy_score(y_test, preds)),
         "f1": float(f1_score(y_test, preds)),
         "classification_report": classification_report(y_test, preds, digits=3),
+        "fitted_model": model,
     }
     if proba is not None:
         report["roc_auc"] = float(roc_auc_score(y_test, proba))
