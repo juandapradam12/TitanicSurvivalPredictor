@@ -18,7 +18,7 @@ modern scikit-learn baselines under an honest cross-validation protocol.
 2. **Fair comparison** — every model sees the same engineered features and stratified folds.
 3. **Portfolio-ready packaging** — notebook for narrative, `src/` for reuse, CLI for one-command demos, tests for regression safety.
 
-## What changed in the 1.1 → 1.2 refresh
+## What changed through the 1.3 refresh
 
 | Area | Before | After |
 |---|---|---|
@@ -28,10 +28,12 @@ modern scikit-learn baselines under an honest cross-validation protocol.
 | Imputation | Global (pre-CV) k-NN | **Fold-safe** k-NN / group-median inside Pipelines |
 | Submission | None | `make_submission.py` → `submission.csv` + joblib artifact |
 | Interpretation | None | Coefficients + SHAP CLI / API |
-| Repo surface | Notebook + CSV + stub README | Package, docs, tests, CLIs, selling README |
+| Tuning | Fixed defaults | RandomizedSearchCV spaces + CLI |
+| Calibration | Threshold 0.5 only | Isotonic/Platt + F1-optimal threshold |
+| Demo / CI | None | Streamlit app + GitHub Actions |
 
 ## How to extend
 
-- Swap in `HistGradientBoostingClassifier` or Optuna tuning for the tree models.
-- Add probability calibration and threshold optimization for F1 / business costs.
-- Publish a Streamlit demo that loads `artifacts/best_model.joblib`.
+- Swap in `HistGradientBoostingClassifier` or Optuna for heavier search.
+- Deploy the Streamlit app (Streamlit Community Cloud / Hugging Face Spaces).
+- Add fare-per-person / ticket-group features if chasing leaderboard points.

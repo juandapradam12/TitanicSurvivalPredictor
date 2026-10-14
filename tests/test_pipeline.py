@@ -135,3 +135,38 @@ def test_engineer_features_adds_columns():
     out = engineer_features(df)
     for col in ["Title", "FamilySize", "IsAlone", "HasCabin", "LogFare", "AgeFilled"]:
         assert col in out.columns
+
+
+def test_tune_logistic_smoke():
+    from titanic_predictor.tuning import tune_model
+
+    df = load_titanic(ROOT / "train.csv")
+    X, y = prepare_raw_xy(df)
+    result = tune_model(
+        X,
+        y,
+        model_name="sklearn_logistic",
+        age_strategy="group_median",
+        n_iter=4,
+        cv_splits=3,
+    )
+    assert result["best_score"] > 0.8
+    assert "model__C" in result["best_params"]
+    preds = result["best_estimator"].predict(X.iloc[:20])
+    assert len(preds) == 20
+
+
+def test_calibration_and_threshold_smoke():
+    from titanic_predictor.calibration import calibration_report, find_best_threshold
+
+    df = load_titanic(ROOT / "train.csv")
+    X, y = prepare_raw_xy(df)
+    model = build_model_zoo(age_strategy="group_median")["sklearn_logistic"]
+    report = calibration_report(model, X, y, method="sigmoid")
+    assert report["calibrated_at_0_5"]["brier"] < 0.25
+    assert 0.05 <= report["calibrated_best_threshold"]["best_threshold"] <= 0.95
+
+    thresh = find_best_threshold(
+        report["y_test"], report["calibrated_proba"], metric="f1"
+    )
+    assert thresh["best_score"] >= report["calibrated_at_0_5"]["f1"] - 1e-9
