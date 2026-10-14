@@ -1,6 +1,6 @@
 # Titanic Survival Predictor
 
-**Interpretable binary classification with a from-scratch logistic regression core — plus a modern model benchmark on Kaggle’s Titanic dataset.**
+**Interpretable binary classification with a from-scratch logistic regression core — plus a leak-safe model benchmark, Kaggle submission pipeline, and SHAP explanations.**
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-orange.svg)](https://scikit-learn.org/)
@@ -13,9 +13,10 @@
 Most Titanic tutorials call `LogisticRegression().fit(...)` and stop. This repository goes further:
 
 1. **Derive and implement** logistic regression from the likelihood and its gradient.
-2. **Impute missing ages** with k-nearest neighbors (scaled), not a blunt global mean.
+2. **Impute missing ages inside each CV fold** (scaled k-NN or group medians) — no leakage.
 3. **Engineer features** that encode social structure (title, family size, cabin presence).
-4. **Compare models fairly** with stratified cross-validation and a holdout set — not in-sample scores.
+4. **Compare models fairly** with stratified cross-validation, then **explain** them with coefficients + SHAP.
+5. **Ship a Kaggle submission** with one command.
 
 The result is a portfolio piece that shows *statistical understanding*, *clean engineering*, and *honest evaluation*.
 
@@ -26,11 +27,12 @@ The result is a portfolio piece that shows *statistical understanding*, *clean e
 | Capability | Detail |
 |---|---|
 | Custom MLE logistic regression | Vectorized gradient ascent, scikit-learn-compatible API |
+| Leak-safe Pipelines | Feature build → age impute → encode/scale nested in CV |
 | Feature engineering | Title, FamilySize, IsAlone, HasCabin, LogFare |
-| Age imputation | Scaled k-NN regressor (+ group-median fallback) |
 | Model zoo | Custom LR · sklearn LR · Random Forest · Gradient Boosting |
-| Evaluation | Stratified 5-fold CV (Accuracy / F1 / ROC-AUC) + holdout report |
-| Reproducible CLI | `python scripts/train_and_evaluate.py` |
+| Evaluation | Stratified 5-fold CV (Accuracy / F1 / ROC-AUC) + holdout |
+| Kaggle submission | `scripts/make_submission.py` → `submission.csv` |
+| Interpretation | Coefficient tables + SHAP mean \|SHAP\| rankings |
 | Walkthrough notebook | Math, EDA, and benchmark in `TitanicSurvivalPredictor.ipynb` |
 
 ---
@@ -47,14 +49,21 @@ python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Run the benchmark
+# Benchmark (leak-safe CV)
 python3 scripts/train_and_evaluate.py
 
-# Or open the notebook
+# Kaggle submission (auto-picks best CV model)
+python3 scripts/make_submission.py --model auto
+
+# Coefficients + SHAP figures
+python3 scripts/interpret_model.py --model sklearn_logistic
+python3 scripts/interpret_model.py --model gradient_boosting
+
+# Notebook
 jupyter notebook TitanicSurvivalPredictor.ipynb
 ```
 
-On the engineered feature set, stratified 5-fold CV typically lands around **~83–84% accuracy** and **~0.87 ROC-AUC**. Gradient Boosting usually leads the leaderboard; the **custom logistic regression stays within ~1 point of scikit-learn’s**, which is the point of the exercise — interpretability without giving up much signal.
+On the engineered feature set with **fold-safe preprocessing**, stratified 5-fold CV typically lands around **~83–84% accuracy** and **~0.88 ROC-AUC**. Gradient Boosting usually leads; the **custom logistic regression stays within ~1 point of scikit-learn’s**.
 
 ---
 
@@ -62,20 +71,28 @@ On the engineered feature set, stratified 5-fold CV typically lands around **~83
 
 ```text
 TitanicSurvivalPredictor/
-├── TitanicSurvivalPredictor.ipynb   # Narrative walkthrough
-├── train.csv                        # Kaggle training data
+├── TitanicSurvivalPredictor.ipynb
+├── train.csv / test.csv
 ├── requirements.txt
-├── src/titanic_predictor/           # Reusable package
-│   ├── custom_logistic.py           # From-scratch logistic regression
-│   ├── features.py                  # Feature engineering
-│   ├── imputation.py                # k-NN age imputation
-│   ├── models.py                    # Model zoo + CV metrics
-│   └── pipeline.py                  # End-to-end benchmark
-├── scripts/train_and_evaluate.py    # CLI entry point
-├── tests/test_pipeline.py           # Smoke tests
+├── src/titanic_predictor/
+│   ├── custom_logistic.py      # From-scratch logistic regression
+│   ├── preprocessing.py        # Leak-safe feature / impute / encode Pipelines
+│   ├── features.py             # Feature helpers
+│   ├── imputation.py           # Classic k-NN helpers
+│   ├── models.py               # Model zoo + CV
+│   ├── interpretation.py       # Coefficients + SHAP
+│   └── pipeline.py             # Benchmark, submit, interpret entry points
+├── scripts/
+│   ├── train_and_evaluate.py
+│   ├── make_submission.py
+│   └── interpret_model.py
+├── tests/
+├── figures/
 └── docs/
-    ├── METHODOLOGY.md               # Data, features, evaluation
-    └── ALGORITHMS.md                # Likelihood, gradient, upgrades
+    ├── METHODOLOGY.md
+    ├── ALGORITHMS.md
+    ├── INTERPRETATION.md
+    └── PROJECT_OVERVIEW.md
 ```
 
 ---
@@ -108,24 +125,36 @@ Full derivation: [docs/ALGORITHMS.md](docs/ALGORITHMS.md).
 ================================================================
  Titanic Survival Predictor — Model Benchmark
 ================================================================
-Samples: 889  |  Features: 15
+Samples: 891  |  Features: 17
 Best model (by ROC-AUC CV): gradient_boosting
 
             model  accuracy_mean  f1_mean  roc_auc_mean
-gradient_boosting         0.8358   0.7729        0.8764
- sklearn_logistic         0.8279   0.7709        0.8749
-  custom_logistic         0.8245   0.7653        0.8747
-    random_forest         0.8335   0.7695        0.8687
+gradient_boosting         0.8406   0.7785        0.8816
+    random_forest         0.8328   0.7687        0.8775
+ sklearn_logistic         0.8283   0.7729        0.8768
+  custom_logistic         0.8283   0.7711        0.8759
 ```
 
-*(Figures from a local stratified 5-fold run; re-run the script for your environment.)*
+### What drives survival?
+
+<p align="center">
+  <img src="figures/coefficients_sklearn_logistic.png" alt="Logistic coefficients" width="720"/>
+</p>
+
+<p align="center">
+  <img src="figures/shap_importance_gradient_boosting.png" alt="SHAP importance for Gradient Boosting" width="720"/>
+</p>
+
+Title, sex, and class dominate both the linear coefficients and the tree SHAP rankings — the story an interpretable model should recover.
 
 ---
 
 ## Documentation
 
-- [Methodology](docs/METHODOLOGY.md) — data cleaning, features, CV protocol
+- [Methodology](docs/METHODOLOGY.md) — leak-safe Pipelines, features, CV
 - [Algorithms](docs/ALGORITHMS.md) — custom logistic regression & imputation
+- [Interpretation](docs/INTERPRETATION.md) — coefficients & SHAP
+- [Project overview](docs/PROJECT_OVERVIEW.md) — elevator pitch & design principles
 - [Notebook](TitanicSurvivalPredictor.ipynb) — exploratory analysis and live training
 
 ---
@@ -142,8 +171,7 @@ python3 -m pytest tests/ -q
 
 Passenger records come from Kaggle’s
 [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic/data)
-competition. This project is for education and portfolio demonstration, not a
-competition submission package.
+competition. `train.csv` and `test.csv` are included so the submission script runs out of the box.
 
 ---
 

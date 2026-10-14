@@ -2,13 +2,15 @@
 
 from .custom_logistic import CustomLogisticRegression
 from .features import engineer_features, prepare_model_matrix
-from .pipeline import run_benchmark
+from .pipeline import interpret_model, predict_submission, run_benchmark
 
 __all__ = [
     "CustomLogisticRegression",
     "engineer_features",
     "prepare_model_matrix",
     "run_benchmark",
+    "predict_submission",
+    "interpret_model",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
