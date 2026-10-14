@@ -115,12 +115,12 @@ TitanicSurvivalPredictor/
 
 ## The math (short version)
 
-For labels \(y_i \in \{-1,+1\}\),
+For labels $y_i \in \{-1,+1\}$,
 
 $$
 \nabla_w \mathcal{L}
   = \sum_{i=1}^{n}
-    \big(1 - \sigma(y_i\, x_i^\top w)\big)\, y_i\, x_i,
+    \bigl(1 - \sigma(y_i\, x_i^\top w)\bigr)\, y_i\, x_i,
 \quad
 \sigma(z)=\frac{1}{1+e^{-z}}.
 $$
